@@ -15,8 +15,9 @@ class Mparser(Parser):
         ('nonassoc', 'LT', 'LE', 'GT', 'GE', 'EQ', 'NE'),
         ('left', 'PLUS', 'MINUS', 'DOTADD', 'DOTSUB'),
         ('left', 'TIMES', 'DIVIDE', 'DOTMUL', 'DOTDIV'),
-        ('right', 'NEGATE', 'UMINUS'),
-        ('right', '[', '\''),
+        ('right', 'UMINUS'),
+        ('right', '\''),
+        ('left', '['),
     )
 
     @_('statements')
@@ -28,171 +29,107 @@ class Mparser(Parser):
     @_('statement')
     def statements(self, p): return [p.statement]
 
-    @_('simple_stmt ";"')
-    def statement(self, p): return p.simple_stmt
+    @_('assignment ";"')
+    def statement(self, p): return p.assignment if hasattr(p, 'assignment') else p.expr
+    
+    @_('BREAK ";"')
+    def statement(self, p): return ('break',)
+    
+    @_('CONTINUE ";"')
+    def statement(self, p): return ('continue',)
+    
+    @_('RETURN expr ";"')
+    def statement(self, p): return ('return', p.expr)
 
-    @_('compound_stmt')
-    def statement(self, p): return p.compound_stmt
+    @_('PRINT elements ";"')
+    def statement(self, p): return ('print', p.elements)
 
-    @_('compound_block')
-    def statement(self, p): return p.compound_block
+    @_('IF "(" condition ")" statement %prec IFX')
+    def statement(self, p): return ('if', p.condition, p.statement)
+
+    @_('IF "(" condition ")" statement ELSE statement')
+    def statement(self, p): return ('if_else', p.condition, p.statement0, p.statement1)
+    
+    @_('WHILE "(" condition ")" statement')
+    def statement(self, p): return ('while', p.condition, p.statement)
+
+    @_('FOR ID "=" range_expr statement')
+    def statement(self, p): return ('for', ('id', p.ID), p.range_expr, p.statement)
+     
+    @_('"{" statements "}"')
+    def statement(self, p): return ('block', p.statements)
 
     @_('";"')
     def statement(self, _): return ('empty',)
 
-    @_('assignment')
-    def simple_stmt(self, p): return p
-
-    @_('expr')
-    def simple_stmt(self, p): return p.expr
-    
-    @_('BREAK')
-    def simple_stmt(self, p): return ('break',)
-    
-    @_('CONTINUE')
-    def simple_stmt(self, p): return ('continue',)
-    
-    @_('RETURN expr')
-    def simple_stmt(self, p): return ('return', p.expr)
-
     @_('ID')
-    def lvalue(self, p): return ('id', p.ID)
-
-    @_('index')
-    def lvalue(self, p): return p
+    @_('_index')
+    def lvalue(self, p): return p[0]
 
     @_('lvalue "=" expr')
-    def assignment(self, p): return ('assign', '=', p.lvalue, p.expr)
-
     @_('lvalue ADDASSIGN expr')
-    def assignment(self, p): return ('addassign', '+=', p.lvalue, p.expr)
-
     @_('lvalue SUBASSIGN expr')
-    def assignment(self, p): return ('subassign', '-=', p.lvalue, p.expr)
-
     @_('lvalue MULASSIGN expr')
-    def assignment(self, p): return ('mulassign', '*=', p.lvalue, p.expr)
-
     @_('lvalue DIVASSIGN expr')
-    def assignment(self, p): return ('divassign', '/=', p.lvalue, p.expr)
-
-    @_('PRINT print_list')
-    def simple_stmt(self, p): return ('print', p.print_list)
-
-    @_('expr "," print_list')
-    def print_list(self, p): return [p.expr] + p.print_list
-
-    @_('expr')
-    def print_list(self, p): return [p.expr]
-
-    @_('IF "(" condition ")" statement %prec IFX')
-    def compound_stmt(self, p): return ('if', p.condition, p.statement)
-
-    @_('IF "(" condition ")" statement ELSE statement')
-    def compound_stmt(self, p): return ('if_else', p.condition, p.statement0, p.statement1)
-    
-    @_('WHILE "(" condition ")" statement')
-    def compound_stmt(self, p): return ('while', p.condition, p.statement)
-
-    @_('FOR ID "=" range_expr statement')
-    def compound_stmt(self, p): return ('for', ('id', p.ID), p.range_expr, p.statement)
-    
-    @_('"{" statements "}"')
-    def compound_block(self, p): return ('block', p.statements)
+    def assignment(self, p): return ('assign', p[1], p.lvalue, p.expr)
 
     @_('expr EQ expr')
-    def condition(self, p): return ('eq', p.expr0, p.expr1)
-
     @_('expr NE expr')
-    def condition(self, p): return ('ne', p.expr0, p.expr1)
-
     @_('expr LT expr')
-    def condition(self, p): return ('lt', p.expr0, p.expr1)
-
     @_('expr LE expr')
-    def condition(self, p): return ('le', p.expr0, p.expr1)
-
     @_('expr GT expr')
-    def condition(self, p): return ('gt', p.expr0, p.expr1)
-
     @_('expr GE expr')
-    def condition(self, p): return ('ge', p.expr0, p.expr1)
+    def condition(self, p): return ('condition', p[1], p.expr0, p.expr1)
 
-    @_('expr PLUS term')
-    def expr(self, p): return ('+', p.expr, p.term)
+    @_('expr PLUS expr')
+    @_('expr MINUS expr')
+    @_('expr DOTADD expr')
+    @_('expr DOTSUB expr')
+    @_('expr TIMES expr')
+    @_('expr DIVIDE expr')
+    @_('expr DOTMUL expr')
+    @_('expr DOTDIV expr')
+    def expr(self, p): return (p[1], p.expr0, p.expr1)
 
-    @_('expr MINUS term')
-    def expr(self, p): return ('-', p.expr, p.term)
-
-    @_('expr DOTADD term')
-    def expr(self, p): return ('.+', p.expr, p.term)
-
-    @_('expr DOTSUB term')
-    def expr(self, p): return ('.-', p.expr, p.term)
-
-    @_('term')
-    def expr(self, p): return p.term
-
-    @_('term TIMES factor')
-    def term(self, p): return ('*', p.term, p.factor)
-
-    @_('term DIVIDE factor')
-    def term(self, p): return ('/', p.term, p.factor)
-
-    @_('term DOTMUL factor')
-    def term(self, p): return ('.*', p.term, p.factor)
-
-    @_('term DOTDIV factor')
-    def term(self, p): return ('./', p.term, p.factor)
-
-    @_('factor')
-    def term(self, p): return p.factor
-    
-    @_('MINUS term %prec UMINUS')
-    def term(self, p): return ('neg', p.term)
-
-    @_('NEGATE term %prec NEGATE')
-    def term(self, p): return ('negate', p.term)
+    @_('MINUS expr %prec UMINUS')
+    def expr(self, p): return ('unary', '-', p.expr)
 
     @_('ID "[" idx_list "]"')
-    def index(self, p):
+    def _index(self, p):
         return ('index', p.ID, p.idx_list)
 
-    @_('ID') 
-    def factor(self, p): return ('id', p.ID)
+    @_('ID  %prec "["') 
+    def expr(self, p): return ('id', p.ID)
 
-    @_('index')
-    def factor(self, p): return p
+    @_('_index')
+    def expr(self, p): return p
 
-    @_('factor "\'"')
-    def factor(self, p): return ('transpose', p.factor)
+    @_('expr "\'"')
+    def expr(self, p): return ('transpose', p.expr)
 
     @_('ONES "(" idx_list ")"')
-    def factor(self, p): return ('ones', p.idx_list)
+    def expr(self, p): return ('ones', p.idx_list)
 
     @_('EYE "(" idx_list ")"')
-    def factor(self, p): return ('eye', p.idx_list)
+    def expr(self, p): return ('eye', p.idx_list)
 
     @_('ZEROS "(" idx_list ")"')
-    def factor(self, p): return ('zeros', p.idx_list)
+    def expr(self, p): return ('zeros', p.idx_list)
 
-    @_('matrix_literal')
-    def factor(self, p): return p.matrix_literal
+    @_('"[" rows "]"')
+    def expr(self, p): return ('matrix', p.rows)
 
     @_('"(" expr ")"')
-    def factor(self, p): return p.expr
+    def expr(self, p): return p.expr
 
     @_('INTNUM')
-    def factor(self, p): return ('int', int(p.INTNUM))
+    def expr(self, p): return ('int', int(p.INTNUM))
 
     @_('FLOATNUM')
-    def factor(self, p): return ('float', float(p.FLOATNUM))
-
-    @_('SCINOTATION')
-    def factor(self, p): return ('float', float(p.SCINOTATION))
+    def expr(self, p): return ('float', float(p.FLOATNUM))
 
     @_('STRING')
-    def factor(self, p): return ('str', p.STRING)
+    def expr(self, p): return ('str', p.STRING)
 
     @_('INTNUM')
     def idx_list(self, p): return [p.INTNUM]
@@ -200,17 +137,11 @@ class Mparser(Parser):
     @_('idx_list "," INTNUM')
     def idx_list(self, p): return p.idx_list + [p.INTNUM]
 
-    @_('"[" rows "]"')
-    def matrix_literal(self, p): return ('matrix', p.rows)
-
-    @_('row')
-    def rows(self, p): return [p.row]
-
-    @_('rows ";" row')
-    def rows(self, p): return p.rows + [p.row]
-
     @_('elements')
-    def row(self, p): return p.elements
+    def rows(self, p): return [p.elements]
+
+    @_('rows ";" elements')
+    def rows(self, p): return p.rows + [p.elements]
 
     @_('expr')
     def elements(self, p): return [p.expr]

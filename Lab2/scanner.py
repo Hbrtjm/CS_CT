@@ -25,11 +25,8 @@ class Scanner(Lexer):
         'LT', 
         'GT', 
         'NE',
-        
-        'NEGATE',
 
         'INTNUM', 
-        'SCINOTATION',
         'FLOATNUM',
         'STRING', 
         'ID',
@@ -50,8 +47,7 @@ class Scanner(Lexer):
     
     literals = { '[', ']', '(', ')', '{', '}', ';', ':', ',', '=', '\'', '"'}
     
-    FLOATNUM = r'\d+\.\d*|\.\d+'
-    SCINOTATION = r'\d+\.\d+(E)\d+'
+    FLOATNUM = r'(\d+\.\d*|\.\d+)((E|e)[-+]?\d+)?'
     INTNUM   = r'\d+'
     STRING   = r'\"[^\"]*\"'
 
@@ -76,8 +72,6 @@ class Scanner(Lexer):
     NE = r'!='
     LT = r'<'
     GT = r'>'
-    
-    NEGATE = r'~'
     
     ID = r'[A-Za-z_][A-Za-z0-9_]*'
     ID['zeros']    = 'ZEROS'
@@ -108,7 +102,7 @@ if __name__ == '__main__':
 
     lexer = Scanner()
 
-    filename = sys.argv[1] if len(sys.argv) > 1 else "example.txt"
+    filename = sys.argv[1] if len(sys.argv) > 1 else "./tests/example0.m"
     with open(filename, "r") as file:
         text = file.read()
 
