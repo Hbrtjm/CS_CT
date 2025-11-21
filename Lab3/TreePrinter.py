@@ -1,21 +1,25 @@
-from typing import Optional, Tuple, List
 import AST
-from addToClass import addToClass
+
+def addToClass(cls):
+    def decorator(func):
+        setattr(cls, func.__name__, func)
+        return func
+    return decorator
 
 
 class TreePrinter:
     @staticmethod
-    def safe_print_tree(obj, indent_level = 0) -> None:
+    def safe_print_tree(obj, indent_level=0) -> None:
         prefix = "|  " * indent_level
         if obj is not None and hasattr(obj, "print_tree"):
             obj.print_tree(indent_level)
         else:
             print(f"{prefix}{obj}")
-        
+
     @addToClass(AST.Statements)
     def print_tree(self, *args) -> None:
         statements = self.statements
-        if isinstance(statements, Tuple) or isinstance(statements, List):
+        if isinstance(statements, (tuple, list)):
             for r in statements:
                 if hasattr(r, "print_tree"):
                     r.print_tree(0)
@@ -29,7 +33,7 @@ class TreePrinter:
     @addToClass(AST.Block)
     def print_tree(self, indent_level=0) -> None:
         statements = self.statements
-        if isinstance(statements, Tuple) or isinstance(statements, List):
+        if isinstance(statements, (tuple, list)):
             for statement in statements:
                 if hasattr(statement, "print_tree"):
                     statement.print_tree(indent_level)
@@ -87,7 +91,7 @@ class TreePrinter:
         print("|  " * indent_level + "RANGE")
         TreePrinter.safe_print_tree(self.start, indent_level + 1)
         TreePrinter.safe_print_tree(self.end, indent_level + 1)
-        if self.step:
+        if getattr(self, "step", None):
             TreePrinter.safe_print_tree(self.step, indent_level + 1)
 
     @addToClass(AST.For)
@@ -108,10 +112,10 @@ class TreePrinter:
         print("|  " * indent_level + "IF")
         TreePrinter.safe_print_tree(self.condition, indent_level + 1)
         if self.block:
-            print("|  " * indent_level + "THEN")
+            print("|  " * (indent_level + 1) + "THEN")
             TreePrinter.safe_print_tree(self.block, indent_level + 1)
-        if self._else:
-            print("|  " * indent_level + "ELSE")
+        if getattr(self, "_else", None):
+            print("|  " * (indent_level + 1) + "ELSE")
             TreePrinter.safe_print_tree(self._else, indent_level + 1)
 
     @addToClass(AST.Apply)
