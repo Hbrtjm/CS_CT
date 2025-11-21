@@ -1,6 +1,6 @@
-# mypy: disable-error-code="no-untyped-def"
-
 from collections import defaultdict
+
+import inspect
 
 debug: bool
 
@@ -36,9 +36,6 @@ def addToClass(cls):
         return func
 
     return decorator
-
-
-import inspect
 
 
 def on(param_name):
@@ -89,7 +86,6 @@ class Dispatcher(object):
 
     @staticmethod
     def __argspec(fn):
-        # Support for Python 3 type hints requires inspect.getfullargspec
         if hasattr(inspect, 'getfullargspec'):
             return inspect.getfullargspec(fn)
         else:
