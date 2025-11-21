@@ -39,7 +39,7 @@ class Variable(Node):
         super().__init__(lineno)
         self.name = name
 
-class BinExpr(Node):
+class OpExpr(Node):
     op: str
     left: Expr
     right: Expr

@@ -84,7 +84,7 @@ class Mparser(Parser):
     @_('expr LE expr')
     @_('expr GT expr')
     @_('expr GE expr')
-    def condition(self, p): return AST.BinExpr(p[1], p.expr0, p.expr1, p.lineno)
+    def condition(self, p): return AST.OpExpr(p[1], p.expr0, p.expr1, p.lineno)
 
     @_('expr PLUS expr')
     @_('expr MINUS expr')

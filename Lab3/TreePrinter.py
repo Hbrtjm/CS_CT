@@ -48,7 +48,7 @@ class TreePrinter:
     def print_tree(self, indent_level=0) -> None:
         print("|  " * indent_level + f"{self.name}")
 
-    @addToClass(AST.BinExpr)
+    @addToClass(AST.OpExpr)
     def print_tree(self, indent_level=0) -> None:
         print("|  " * indent_level + self.op)
         TreePrinter.safe_print_tree(self.left, indent_level + 1)
