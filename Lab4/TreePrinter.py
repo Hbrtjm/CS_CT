@@ -138,8 +138,9 @@ class TreePrinter:
         print("|  " * indent_level + "MATRIX INDEX")
         print("|  " * (indent_level + 1) + "ARGUMENTS")
         TreePrinter.safe_print_tree(self.matrix, indent_level + 2)
-        TreePrinter.safe_print_tree(self.row, indent_level + 2)
-        TreePrinter.safe_print_tree(self.col, indent_level + 2)
+        print("|  " * (indent_level + 1) + "INDICES")
+        for index in self.indices:
+            TreePrinter.safe_print_tree(index, indent_level + 2)
 
     @addToClass(AST.Assign)
     def print_tree(self, indent_level=0) -> None:
