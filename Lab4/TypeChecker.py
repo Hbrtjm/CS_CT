@@ -134,9 +134,9 @@ class TypeChecker(NodeVisitor):
     def __init__(self):
         self.st = SymbolTable()
         self.functions = {
-            "ones":  (["int", "int"], lambda r, c: matrix_t("float", r, c)),
-            "zeros": (["int", "int"], lambda r, c: matrix_t("float", r, c)),
-            "eye":   (["int", "int"], lambda r, c: matrix_t("float", r, c)),
+            "ones":  (["int"], lambda r, c: matrix_t("float", r, c)),
+            "zeros": (["int"], lambda r, c: matrix_t("float", r, c)),
+            "eye":   (["int"], lambda r, c: matrix_t("float", r, c)),
         }
 
     def error(self, msg, node=None):
@@ -315,6 +315,17 @@ class TypeChecker(NodeVisitor):
 
     def visit_Assign(self, node: AST.Assign):
         rtype = self.visit(node.expr)
+
+        if isinstance(node.lvalue, str):
+            name = node.lvalue
+            ltype = self.st.get(name)
+            if ltype is None:
+                self.st.put(name, rtype)
+                ltype = rtype
+            result = self.check_assign(node.operator, ltype, rtype, node)
+            self.st.set(name, result)
+            return result
+
         if isinstance(node.lvalue, AST.Variable):
             name = node.lvalue.name
             ltype = self.st.get(name)
@@ -369,14 +380,15 @@ class TypeChecker(NodeVisitor):
             return None
 
         shape = mat_shape(mt)
-        if len(node.indices) != len(shape):
+        indices = node.indices
+        if len(indices) != len(shape):
             self.error(
                 f"Wrong number of indices for matrix {node.matrix.name}: "
-                f"expected {len(shape)}, got {len(node.indices)}",
+                f"expected {len(shape)}, got {len(indices)}",
                 node,
             )
 
-        for dim, (idx_expr, dim_size) in enumerate(zip(node.indices, shape)):
+        for dim, (idx_expr, dim_size) in enumerate(zip(indices, shape)):
             idx_t = self.visit(idx_expr)
             if idx_t != "int":
                 self.error(
@@ -451,17 +463,15 @@ class TypeChecker(NodeVisitor):
         return "void"
 
     def visit_Return(self, node: AST.Return):
-        if self.st.depth == 0:
-            self.error("Return outside of the block", node)
         return self.visit(node.value) if node.value is not None else "void"
 
     def visit_Break(self, node: AST.Break):
-        if self.st.depth == 0 or not self.st.in_loop:
+        if not self.st.in_loop:
             self.error('Break outside of the "while" or "for" loop', node)
         return "void"
 
     def visit_Continue(self, node: AST.Continue):
-        if self.st.depth == 0 or not self.st.in_loop:
+        if not self.st.in_loop:
             self.error('Continue outside of the "while" or "for" loop', node)
         return "void"
 
@@ -470,26 +480,26 @@ class TypeChecker(NodeVisitor):
         if fname not in self.functions and fname not in self.ttype.keys():
             self.error(f"Unknown function '{fname}'", node)
         if fname in self.functions:
-            expected, builder = self.functions[fname]
+            _, builder = self.functions[fname]
 
-            if len(node.args) != len(expected):
+            if len(node.args) < 1 or len(node.args) > 2:
                 self.error(
-                    f"Function '{fname}' expects {len(expected)} args, "
-                    f"got {len(node.args)}",
+                    f"Function '{fname}' expects 1 or 2 args, got {len(node.args)}",
                     node,
                 )
+
             arg_types = [self.visit(a) for a in node.args]
-            for i, got in enumerate(arg_types[:len(expected)]):
-                if expected[i] != got:
+            for i, got in enumerate(arg_types):
+                if got != "int":
                     self.error(
-                        f"Argument {i} of '{fname}' expected "
-                        f"{tstr(expected[i])}, got {tstr(got)}",
+                        f"Argument {i} of '{fname}' expected int, got {tstr(got)}",
                         node.args[i],
                     )
 
             def _dim(a):
                 return a.value if isinstance(a, AST.Literal) and a.typename == "int" else None
             args = [_dim(a) for a in node.args]
+
             if fname == "eye" and len(args) == 2:
                 r, c = args
                 if r is not None and c is not None and r != c:
@@ -497,8 +507,12 @@ class TypeChecker(NodeVisitor):
                         f"eye expects a square shape, got {r}x{c}",
                         node,
                     )
+
             if len(args) == 1:
+                if fname == "eye":
+                    return matrix_t("float", args[0], args[0])
                 return matrix_t("float", args[0], 1)
+            
             return builder(args[0], args[1])
 
         else:

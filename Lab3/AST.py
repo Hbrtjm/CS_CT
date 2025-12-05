@@ -165,7 +165,7 @@ class MatrixIndex(Node):
 
 class Assign(Node):
     lvalue: Variable
-    expr: Expr 
+    expr: Expr
     operator: str
     def __init__(self, lvalue, operator, expr, lineno=None):
         super().__init__(lineno)

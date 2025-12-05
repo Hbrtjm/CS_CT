@@ -111,6 +111,7 @@ class For(Node):
 class While(Node):
     condition: Expr
     block: Node
+    
     def __init__(self, condition, block, lineno=None):
         super().__init__(lineno)
         self.condition = condition
@@ -120,6 +121,7 @@ class If(Node):
     condition: Expr
     block: Block
     _else: Optional[Block]
+    
     def __init__(self, condition, block, _else=None, lineno=None):
         super().__init__(lineno)
         self.condition = condition
@@ -167,6 +169,7 @@ class Assign(Node):
     lvalue: Variable
     expr: Expr 
     operator: str
+    
     def __init__(self, lvalue, operator, expr, lineno=None):
         super().__init__(lineno)
         self.lvalue = lvalue
