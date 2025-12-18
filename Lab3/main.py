@@ -10,7 +10,7 @@ TESTS = "tests"
 if __name__ == "__main__":
     filename = sys.argv[1] if len(sys.argv) > 1 else "example3.m"
     filepath = os.path.join(TESTS, filename)
-
+    custom_indent = sys.argv[2] if len(sys.argv) > 2 else "|  "
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             text = f.read()
@@ -22,6 +22,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
         if result and not isinstance(result, AST.Empty):
+            TreePrinter.set_indent(custom_indent)
             TreePrinter.print_result(result)
     except IOError:
         print(f"Cannot open {filename} file")
