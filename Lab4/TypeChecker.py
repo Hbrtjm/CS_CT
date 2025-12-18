@@ -131,13 +131,14 @@ class TypeChecker(NodeVisitor):
         }
     }
 
-    def __init__(self):
+    def __init__(self, info=False):
         self.st = SymbolTable()
         self.functions = {
             "ones":  (["int"], lambda r, c: matrix_t("float", r, c)),
             "zeros": (["int"], lambda r, c: matrix_t("float", r, c)),
             "eye":   (["int"], lambda r, c: matrix_t("float", r, c)),
         }
+        self.info = info
 
     def error(self, msg, node=None):
         line = getattr(node, "lineno", None)
@@ -146,6 +147,13 @@ class TypeChecker(NodeVisitor):
         else:
             print(msg)
 
+    def info(self, msg, node=None):
+        line = getattr(node, "lineno", None)
+        if line is not None and self.info:
+            print(f"[line {line}] {msg}")
+        else:
+            print(msg)
+            
     def _transpose_type(self, t, node):
         if not is_matrix(t):
             self.error(f"Transpose expects a matrix, got {tstr(t)}", node)
@@ -180,7 +188,7 @@ class TypeChecker(NodeVisitor):
         c_ok = (ac is None or bc is None or ac == bc)
         r_multiple = (ar is None or br is None or ( ar % br == 0 and ar != 1 and br != 1))
         c_multiple = (ac is None or bc is None or ac % bc == 0 and ac != 1 and bc != 1)
-        return (r_ok and r_multiple) or (c_ok and c_multiple) # Will boradcast in the directrion, where the values is not okay
+        return (r_ok and r_multiple) or (c_ok and c_multiple)
 
     def _same_shape(self, a, b):
         if not (is_matrix(a) and is_matrix(b)):
@@ -213,7 +221,7 @@ class TypeChecker(NodeVisitor):
                           ".+", ".-", ".*", "./"}:
                 self.error(f"Unsupported matrix op '{op}'", node)
             if self._matrix_broadcast(lt, rt):
-                self.error(f"Matrixes can boradcast together {tstr(lt)} {op} {tstr(rt)}", node)
+                self.info(f"Matrixes can boradcast together {tstr(lt)} {op} {tstr(rt)}", node)
             if not self._same_shape(lt, rt):
                 self.error(f"Shape mismatch for '{op}': {tstr(lt)} {op} {tstr(rt)}", node)
             le = base_elem(lt)

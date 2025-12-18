@@ -8,9 +8,19 @@ def addToClass(cls):
 
 
 class TreePrinter:
+    indent = "|  "
+
+    @classmethod
+    def set_indent(cls, indent_str):
+        cls.indent = indent_str
+
+    @classmethod
+    def get_indent(cls):
+        return cls.indent
+
     @staticmethod
     def safe_print_tree(obj, indent_level=0) -> None:
-        prefix = "|  " * indent_level
+        prefix = TreePrinter.indent * indent_level
         if obj is not None and hasattr(obj, "print_tree"):
             obj.print_tree(indent_level)
         else:
@@ -46,49 +56,49 @@ class TreePrinter:
 
     @addToClass(AST.Variable)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + f"{self.name}")
+        print(TreePrinter.indent * indent_level + f"{self.name}")
 
     @addToClass(AST.OpExpr)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + self.op)
+        print(TreePrinter.indent * indent_level + self.op)
         TreePrinter.safe_print_tree(self.left, indent_level + 1)
         TreePrinter.safe_print_tree(self.right, indent_level + 1)
 
     @addToClass(AST.Matrix)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + "MATRIX")
+        print(TreePrinter.indent * indent_level + "MATRIX")
         for row in self.rows:
-            print("|  " * (indent_level + 1) + "ROW")
+            print(TreePrinter.indent * (indent_level + 1) + "ROW")
             for elem in row:
                 TreePrinter.safe_print_tree(elem, indent_level + 2)
 
     @addToClass(AST.Transpose)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + "TRANSPOSE")
+        print(TreePrinter.indent * indent_level + "TRANSPOSE")
         TreePrinter.safe_print_tree(self.matrix, indent_level + 1)
 
     @addToClass(AST.Break)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + "BREAK")
+        print(TreePrinter.indent * indent_level + "BREAK")
 
     @addToClass(AST.Continue)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + "CONTINUE")
+        print(TreePrinter.indent * indent_level + "CONTINUE")
 
     @addToClass(AST.Return)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + "RETURN")
+        print(TreePrinter.indent * indent_level + "RETURN")
         TreePrinter.safe_print_tree(self.value, indent_level + 1)
 
     @addToClass(AST.Print)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + "PRINT")
+        print(TreePrinter.indent * indent_level + "PRINT")
         for expr in self.printlist:
             TreePrinter.safe_print_tree(expr, indent_level + 1)
 
     @addToClass(AST.Range)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + "RANGE")
+        print(TreePrinter.indent * indent_level + "RANGE")
         TreePrinter.safe_print_tree(self.start, indent_level + 1)
         TreePrinter.safe_print_tree(self.end, indent_level + 1)
         if getattr(self, "step", None):
@@ -96,55 +106,54 @@ class TreePrinter:
 
     @addToClass(AST.For)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + "FOR")
-        print("|  " * (indent_level + 1) + self.var.name)
+        print(TreePrinter.indent * indent_level + "FOR")
+        print(TreePrinter.indent * (indent_level + 1) + self.var.name)
         TreePrinter.safe_print_tree(self._range, indent_level + 1)
         TreePrinter.safe_print_tree(self.statement, indent_level + 1)
 
     @addToClass(AST.While)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + "WHILE")
+        print(TreePrinter.indent * indent_level + "WHILE")
         TreePrinter.safe_print_tree(self.condition, indent_level + 1)
         TreePrinter.safe_print_tree(self.block, indent_level + 1)
 
     @addToClass(AST.If)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + "IF")
+        print(TreePrinter.indent * indent_level + "IF")
         TreePrinter.safe_print_tree(self.condition, indent_level + 1)
         if self.block:
-            print("|  " * (indent_level + 1) + "THEN")
+            print(TreePrinter.indent * (indent_level + 1) + "THEN")
             TreePrinter.safe_print_tree(self.block, indent_level + 1)
         if getattr(self, "_else", None):
-            print("|  " * (indent_level + 1) + "ELSE")
+            print(TreePrinter.indent * (indent_level + 1) + "ELSE")
             TreePrinter.safe_print_tree(self._else, indent_level + 1)
 
     @addToClass(AST.Apply)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + f"{self.ref}")
+        print(TreePrinter.indent * indent_level + f"{self.ref}")
         for arg in self.args:
             TreePrinter.safe_print_tree(arg, indent_level + 1)
 
     @addToClass(AST.UnaryExpr)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + f"UNARY {self.op}")
+        print(TreePrinter.indent * indent_level + f"UNARY {self.op}")
         TreePrinter.safe_print_tree(self.expr, indent_level + 1)
 
     @addToClass(AST.Literal)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + str(self.value))
+        print(TreePrinter.indent * indent_level + str(self.value))
 
     @addToClass(AST.MatrixIndex)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + "MATRIX INDEX")
-        print("|  " * (indent_level + 1) + "ARGUMENTS")
+        print(TreePrinter.indent * indent_level + "MATRIX INDEX")
+        print(TreePrinter.indent * (indent_level + 1) + "ARGUMENTS")
         TreePrinter.safe_print_tree(self.matrix, indent_level + 2)
-        print("|  " * (indent_level + 1) + "INDICES")
-        for index in self.indices:
-            TreePrinter.safe_print_tree(index, indent_level + 2)
+        TreePrinter.safe_print_tree(self.row, indent_level + 2)
+        TreePrinter.safe_print_tree(self.col, indent_level + 2)
 
     @addToClass(AST.Assign)
     def print_tree(self, indent_level=0) -> None:
-        print("|  " * indent_level + self.operator)
+        print(TreePrinter.indent * indent_level + self.operator)
         TreePrinter.safe_print_tree(self.lvalue, indent_level + 1)
         TreePrinter.safe_print_tree(self.expr, indent_level + 1)
 
