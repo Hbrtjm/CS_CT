@@ -30,7 +30,6 @@ def total_shape(t):
         return (tr, tc)
     return (r, c)
 
-
 def tstr(t):
     if is_matrix(t):
         (r, c) = mat_shape(t)
@@ -38,7 +37,6 @@ def tstr(t):
     if is_range(t):
         return f"range<{tstr(t[1])}>"
     return str(t)
-
 
 class NodeVisitor(object):
 
@@ -60,7 +58,6 @@ class NodeVisitor(object):
                             self.visit(item)
                 elif isinstance(child, AST.Node):
                     self.visit(child)
-
 
 class TypeChecker(NodeVisitor):
     ttype = {
@@ -324,16 +321,6 @@ class TypeChecker(NodeVisitor):
     def visit_Assign(self, node: AST.Assign):
         rtype = self.visit(node.expr)
 
-        if isinstance(node.lvalue, str):
-            name = node.lvalue
-            ltype = self.st.get(name)
-            if ltype is None:
-                self.st.put(name, rtype)
-                ltype = rtype
-            result = self.check_assign(node.operator, ltype, rtype, node)
-            self.st.set(name, result)
-            return result
-
         if isinstance(node.lvalue, AST.Variable):
             name = node.lvalue.name
             ltype = self.st.get(name)
@@ -529,41 +516,3 @@ class TypeChecker(NodeVisitor):
             lt = self.visit(node.args[0])
             rt = self.visit(node.args[1])
             return self.check_binop(fname, lt, rt, node)
-
-import sys
-import os
-from parser import Mparser as Parser
-from scanner import Scanner
-from TreePrinter import TreePrinter
-import AST
-from TypeChecker import TypeChecker
-
-TESTS = "./Lab4/tests"
-
-if __name__ == "__main__":
-    filename = sys.argv[1] if len(sys.argv) > 1 else "example1.m"
-    filepath = os.path.join(TESTS, filename)
-
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            text = f.read()
-        lexer = Scanner()
-        parser = Parser()
-        result = parser.parse(lexer.tokenize(text))
-        if getattr(parser, "had_error", False):
-            print("Parser error")
-            sys.exit(1)
-
-        if result and not isinstance(result, AST.Empty):
-            TreePrinter.print_result(result)
-            try:
-                typeChecker = TypeChecker()   
-                typeChecker.visit(result)
-            except Exception as e:
-                print("Checker exception:", e)
-            
-    except IOError:
-        print(f"Cannot open {filename} file")
-        sys.exit(1)
-    except Exception as e:
-        print("Parser exception:", e)
