@@ -1,6 +1,3 @@
-#!/usr/bin/python
-from __future__ import annotations
-
 from SymbolTable import SymbolTable
 import AST
 
@@ -138,7 +135,7 @@ class TypeChecker(NodeVisitor):
             "zeros": (["int"], lambda r, c: matrix_t("float", r, c)),
             "eye":   (["int"], lambda r, c: matrix_t("float", r, c)),
         }
-        self.info = info
+        self.print_info = info
 
     def error(self, msg, node=None):
         line = getattr(node, "lineno", None)
@@ -146,6 +143,14 @@ class TypeChecker(NodeVisitor):
             print(f"[line {line}] {msg}")
         else:
             print(msg)
+
+    def info(self, msg, node=None):
+        if self.print_info:
+            line = getattr(node, "lineno", None)
+            if line is not None:
+                print(f"[line {line}] INFO: {msg}")
+            else:
+                print(f"INFO: {msg}")
 
     def info(self, msg, node=None):
         line = getattr(node, "lineno", None)
@@ -191,6 +196,7 @@ class TypeChecker(NodeVisitor):
         return (r_ok and r_multiple) or (c_ok and c_multiple)
 
     def _same_shape(self, a, b):
+        """Check if two matrices have the same shape."""
         if not (is_matrix(a) and is_matrix(b)):
             return False
         ar, ac = total_shape(a)
@@ -198,6 +204,17 @@ class TypeChecker(NodeVisitor):
         r_ok = (ar is None or br is None or ar == br)
         c_ok = (ac is None or bc is None or ac == bc)
         return r_ok and c_ok
+
+    def _can_matmul(self, a, b):
+        if not (is_matrix(a) and is_matrix(b)):
+            return False, None, None
+        ar, ac = total_shape(a)
+        br, bc = total_shape(b)
+        # For A * B to be valid: columns of A must equal rows of B
+        can_mul = (ac is None or br is None or ac == br)
+        result_rows = ar
+        result_cols = bc
+        return can_mul, result_rows, result_cols
 
     def check_binop(self, op, lt, rt, node):
         if op in self.ttype and (lt in self.ttype[op]) and (rt in self.ttype[op][lt]):
@@ -207,6 +224,9 @@ class TypeChecker(NodeVisitor):
             if lt == "string" or rt == "string":
                 if op == "+" and lt == "string" and rt == "string":
                     return "string"
+                if op == "*":
+                    if (lt == "string" and rt == "int") or (lt == "int" and rt == "string"):
+                        return "string"
                 self.error(f"Unsupported op '{op}' for strings", node)
                 return None
             if lt == "bool" or rt == "bool":
@@ -220,10 +240,7 @@ class TypeChecker(NodeVisitor):
             if op not in {"+", "-", "*", "/",
                           ".+", ".-", ".*", "./"}:
                 self.error(f"Unsupported matrix op '{op}'", node)
-            if self._matrix_broadcast(lt, rt):
-                self.info(f"Matrixes can boradcast together {tstr(lt)} {op} {tstr(rt)}", node)
-            if not self._same_shape(lt, rt):
-                self.error(f"Shape mismatch for '{op}': {tstr(lt)} {op} {tstr(rt)}", node)
+
             le = base_elem(lt)
             re = base_elem(rt)
             if not (is_numeric(le) and is_numeric(re)):
@@ -234,6 +251,17 @@ class TypeChecker(NodeVisitor):
             elem_res = self._promote_numeric(le, re)
             if elem_res is None:
                 self.error(f"Type mismatch in elements: {tstr(le)} {op} {tstr(re)}", node)
+
+            if op == "*":
+                can_mul, result_rows, result_cols = self._can_matmul(lt, rt)
+                if not can_mul:
+                    self.error(f"Shape mismatch for '*': {tstr(lt)} * {tstr(rt)}", node)
+                return matrix_t(elem_res, result_rows, result_cols)
+
+            if self._matrix_broadcast(lt, rt):
+                self.info(f"Matrixes can boradcast together {tstr(lt)} {op} {tstr(rt)}", node)
+            if not self._same_shape(lt, rt):
+                self.error(f"Shape mismatch for '{op}': {tstr(lt)} {op} {tstr(rt)}", node)
             r, c = total_shape(lt)
             return matrix_t(elem_res, r, c)
 
@@ -437,24 +465,40 @@ class TypeChecker(NodeVisitor):
         return range_t(st)
 
     def visit_For(self, node: AST.For):
+        """
+        Type check a for loop.
+        Creates a new scope with in_loop=True so that break/continue statements
+        inside the loop body (including nested blocks) can be validated.
+        """
         rng_t = self.visit(node._range)
         if not is_range(rng_t):
             self.error(f"FOR expects a range, got {tstr(rng_t)}", node)
-        self.st.in_loop = True
+
+        # Create a new scope for the loop with in_loop=True
+        parent = self.st
+        self.st = parent.fork(in_loop=True)
         try:
             self.st.put(node.var.name, rng_t[1])
             return self.visit(node.statement)
         finally:
-            self.st.in_loop = False
+            self.st = parent
 
     def visit_While(self, node: AST.While):
+        """
+        Type check a while loop.
+        Creates a new scope with in_loop=True so that break/continue statements
+        inside the loop body (including nested blocks) can be validated.
+        """
         cond_t = self.visit(node.condition)
         self.expect_bool(cond_t, "while condition", node)
-        self.st.in_loop = True
+
+        # Create a new scope for the loop with in_loop=True
+        parent = self.st
+        self.st = parent.fork(in_loop=True)
         try:
             return self.visit(node.block)
         finally:
-            self.st.in_loop = False
+            self.st = parent
 
     def visit_If(self, node: AST.If):
         cond_t = self.visit(node.condition)
@@ -529,41 +573,3 @@ class TypeChecker(NodeVisitor):
             lt = self.visit(node.args[0])
             rt = self.visit(node.args[1])
             return self.check_binop(fname, lt, rt, node)
-
-import sys
-import os
-from parser import Mparser as Parser
-from scanner import Scanner
-from TreePrinter import TreePrinter
-import AST
-from TypeChecker import TypeChecker
-
-TESTS = "./Lab4/tests"
-
-if __name__ == "__main__":
-    filename = sys.argv[1] if len(sys.argv) > 1 else "example1.m"
-    filepath = os.path.join(TESTS, filename)
-
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            text = f.read()
-        lexer = Scanner()
-        parser = Parser()
-        result = parser.parse(lexer.tokenize(text))
-        if getattr(parser, "had_error", False):
-            print("Parser error")
-            sys.exit(1)
-
-        if result and not isinstance(result, AST.Empty):
-            TreePrinter.print_result(result)
-            try:
-                typeChecker = TypeChecker()   
-                typeChecker.visit(result)
-            except Exception as e:
-                print("Checker exception:", e)
-            
-    except IOError:
-        print(f"Cannot open {filename} file")
-        sys.exit(1)
-    except Exception as e:
-        print("Parser exception:", e)

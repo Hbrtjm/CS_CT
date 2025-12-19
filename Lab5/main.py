@@ -8,7 +8,7 @@ from Interpreter import Interpreter
 
 def main():
     try:
-        filename = sys.argv[1] if len(sys.argv) > 1 else "./tests/example1.m"
+        filename = sys.argv[1] if len(sys.argv) > 1 else "./tests/fibonacci.m"
         with open(filename, "r") as file:
             text = file.read()
     except IOError:
@@ -40,9 +40,10 @@ def main():
         interpreter = Interpreter()
         ast.accept(interpreter)
     except Exception as e:
-        print(f"\nRuntime error: {e}")
-        import traceback
-        traceback.print_exc()
+        if hasattr(e, 'format_message'):
+            print(f"\n{e.format_message()}")
+        else:
+            print(f"\nInternal error: {e}")
 
     print("\nDone")
 

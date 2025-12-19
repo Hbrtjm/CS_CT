@@ -4,10 +4,8 @@ A = [ 1, 2, 3 ;
 print A;
 print A';
 
-B = [ 1, 2 ;
-      3, 4 ;
-      5, 6 ];
+B = A';
 
-C = A .+ B;
+C = A .+ A;
 print C;
 
