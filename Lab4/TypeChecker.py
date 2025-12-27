@@ -43,7 +43,6 @@ class NodeVisitor(object):
         return visitor(node)
 
     def generic_visit(self, node):
-        # Fall back: walk children if present
         if isinstance(node, AST.Statements):
             for statement in node.statements:
                 self.visit(statement)
@@ -246,19 +245,14 @@ class TypeChecker(NodeVisitor):
                     self.error(f"Shape mismatch for '*': {tstr(lt)} * {tstr(rt)}", node)
                 return matrix_t(elem_res, result_rows, result_cols)
 
-            # For element-wise operations, check if shapes match or can broadcast
             if self._same_shape(lt, rt):
-                # Shapes match exactly - no broadcasting needed
                 r, c = total_shape(lt)
                 return matrix_t(elem_res, r, c)
             elif self._matrix_broadcast(lt, rt):
-                # Shapes are different but can broadcast
                 self.info(f"Matrixes can broadcast together {tstr(lt)} {op} {tstr(rt)}", node)
-                # Broadcasting is allowed - use the larger shape
                 r, c = total_shape(lt)
                 return matrix_t(elem_res, r, c)
             else:
-                # Shapes don't match and can't broadcast
                 self.error(f"Shape mismatch for '{op}': {tstr(lt)} {op} {tstr(rt)}", node)
                 r, c = total_shape(lt)
                 return matrix_t(elem_res, r, c)
@@ -297,30 +291,23 @@ class TypeChecker(NodeVisitor):
 
     def check_assign(self, op, ltype, rtype, node):
         if op == "=":
-            # Allow exact type match
             if ltype == rtype:
                 return ltype
 
-            # Allow numeric type promotion (int -> float)
             if is_numeric(ltype) and is_numeric(rtype):
                 promoted = self._promote_numeric(ltype, rtype)
                 if promoted == ltype:
-                    # Assignment is valid (e.g., float = int)
                     return ltype
 
-            # Allow matrix element type promotion
             if is_matrix(ltype) and is_matrix(rtype):
                 lelem = base_elem(ltype)
                 relem = base_elem(rtype)
                 lshape = mat_shape(ltype)
                 rshape = mat_shape(rtype)
 
-                # Check if shapes match
                 if lshape == rshape:
-                    # Check if element types are compatible
                     if lelem == relem:
                         return ltype
-                    # Allow numeric promotion in matrix elements
                     if is_numeric(lelem) and is_numeric(relem):
                         promoted = self._promote_numeric(lelem, relem)
                         if promoted == lelem:
