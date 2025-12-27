@@ -1,7 +1,7 @@
 
 x = 0;
 y = zeros(5);
-z = x + y;
+z = t;
 
 a = eye(5);
 b = eye(8);

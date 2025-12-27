@@ -1,0 +1,4 @@
+- Fix rows in MatrixIndex
+- Instead of None, print an exception for non-existent rows
+- Check if a matrix is ​​considered after assigning a new vector
+- A matrix can have one index

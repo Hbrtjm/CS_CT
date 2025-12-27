@@ -68,8 +68,10 @@ class Mparser(Parser):
     def statement(self, p): return AST.Empty(p.lineno)
 
     @_('ID')
+    def lvalue(self, p): return AST.Variable(p.ID, p.lineno)
+
     @_('_index')
-    def lvalue(self, p): return AST.Variable(p[0])
+    def lvalue(self, p): return p._index
 
     @_('lvalue "=" expr')
     @_('lvalue ADDASSIGN expr')
@@ -137,11 +139,11 @@ class Mparser(Parser):
     @_('STRING')
     def expr(self, p): return AST.Literal.string(p.STRING, p.lineno)
 
-    @_('INTNUM')
-    def idx_list(self, p): return [AST.Literal.int(int(p.INTNUM), p.lineno)]
+    @_('expr')
+    def idx_list(self, p): return [p.expr]
 
-    @_('idx_list "," INTNUM')
-    def idx_list(self, p): return p.idx_list + [AST.Literal.int(int(p.INTNUM), p.lineno)]
+    @_('idx_list "," expr')
+    def idx_list(self, p): return p.idx_list + [p.expr]
 
     @_('elements')
     def rows(self, p): return [p.elements]
