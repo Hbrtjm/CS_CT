@@ -6,9 +6,7 @@ class Node(object):
     def __init__(self, lineno):
         self.lineno = lineno
 
-    # MINIMAL CHANGE: Added accept method for visitor pattern
     def accept(self, visitor):
-        """Accept a visitor for the visitor pattern."""
         return visitor.visit(self)
 
 class Expr(Node):
@@ -126,12 +124,12 @@ class If(Node):
     condition: Expr
     block: Block
     _else: Optional[Block]
-    
+
     def __init__(self, condition, block, _else=None, lineno=None):
         super().__init__(lineno)
         self.condition = condition
-        self.block = block
-        self._else = _else if isinstance(_else, Block) else (Block(_else, lineno) if _else else None)
+        self.block = block if isinstance(block, Block) else Block([block], lineno)
+        self._else = _else if isinstance(_else, Block) else (Block([_else], lineno) if _else else None)
 
 class Apply(Expr):
     ref: str

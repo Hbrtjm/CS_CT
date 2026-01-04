@@ -27,7 +27,6 @@ def total_shape(t):
         return (tr, tc)
     return (r, c)
 
-
 def tstr(t):
     if is_matrix(t):
         (r, c) = mat_shape(t)
@@ -35,7 +34,6 @@ def tstr(t):
     if is_range(t):
         return f"range<{tstr(t[1])}>"
     return str(t)
-
 
 class NodeVisitor(object):
 
@@ -45,7 +43,6 @@ class NodeVisitor(object):
         return visitor(node)
 
     def generic_visit(self, node):
-        # Fall back: walk children if present
         if isinstance(node, AST.Statements):
             for statement in node.statements:
                 self.visit(statement)
@@ -57,7 +54,6 @@ class NodeVisitor(object):
                             self.visit(item)
                 elif isinstance(child, AST.Node):
                     self.visit(child)
-
 
 class TypeChecker(NodeVisitor):
     ttype = {
@@ -151,13 +147,6 @@ class TypeChecker(NodeVisitor):
                 print(f"[line {line}] INFO: {msg}")
             else:
                 print(f"INFO: {msg}")
-
-    def info(self, msg, node=None):
-        line = getattr(node, "lineno", None)
-        if line is not None and self.info:
-            print(f"[line {line}] {msg}")
-        else:
-            print(msg)
             
     def _transpose_type(self, t, node):
         if not is_matrix(t):
@@ -196,7 +185,6 @@ class TypeChecker(NodeVisitor):
         return (r_ok and r_multiple) or (c_ok and c_multiple)
 
     def _same_shape(self, a, b):
-        """Check if two matrices have the same shape."""
         if not (is_matrix(a) and is_matrix(b)):
             return False
         ar, ac = total_shape(a)
@@ -210,7 +198,6 @@ class TypeChecker(NodeVisitor):
             return False, None, None
         ar, ac = total_shape(a)
         br, bc = total_shape(b)
-        # For A * B to be valid: columns of A must equal rows of B
         can_mul = (ac is None or br is None or ac == br)
         result_rows = ar
         result_cols = bc
@@ -258,12 +245,17 @@ class TypeChecker(NodeVisitor):
                     self.error(f"Shape mismatch for '*': {tstr(lt)} * {tstr(rt)}", node)
                 return matrix_t(elem_res, result_rows, result_cols)
 
-            if self._matrix_broadcast(lt, rt):
-                self.info(f"Matrixes can boradcast together {tstr(lt)} {op} {tstr(rt)}", node)
-            if not self._same_shape(lt, rt):
+            if self._same_shape(lt, rt):
+                r, c = total_shape(lt)
+                return matrix_t(elem_res, r, c)
+            elif self._matrix_broadcast(lt, rt):
+                self.info(f"Matrixes can broadcast together {tstr(lt)} {op} {tstr(rt)}", node)
+                r, c = total_shape(lt)
+                return matrix_t(elem_res, r, c)
+            else:
                 self.error(f"Shape mismatch for '{op}': {tstr(lt)} {op} {tstr(rt)}", node)
-            r, c = total_shape(lt)
-            return matrix_t(elem_res, r, c)
+                r, c = total_shape(lt)
+                return matrix_t(elem_res, r, c)
 
         if is_matrix(lt) and is_scalar(rt):
             le = base_elem(lt)
@@ -299,9 +291,31 @@ class TypeChecker(NodeVisitor):
 
     def check_assign(self, op, ltype, rtype, node):
         if op == "=":
-            if ltype != rtype:
-                self.error(f"Cannot assign {tstr(rtype)} to {tstr(ltype)}", node)
+            if ltype == rtype:
+                return ltype
+
+            if is_numeric(ltype) and is_numeric(rtype):
+                promoted = self._promote_numeric(ltype, rtype)
+                if promoted == ltype:
+                    return ltype
+
+            if is_matrix(ltype) and is_matrix(rtype):
+                lelem = base_elem(ltype)
+                relem = base_elem(rtype)
+                lshape = mat_shape(ltype)
+                rshape = mat_shape(rtype)
+
+                if lshape == rshape:
+                    if lelem == relem:
+                        return ltype
+                    if is_numeric(lelem) and is_numeric(relem):
+                        promoted = self._promote_numeric(lelem, relem)
+                        if promoted == lelem:
+                            return ltype
+
+            self.error(f"Cannot assign {tstr(rtype)} to {tstr(ltype)}", node)
             return ltype
+
         if op.endswith("="):
             res = self.check_binop(op[:-1], ltype, rtype, node)
             if res != ltype:
@@ -336,7 +350,7 @@ class TypeChecker(NodeVisitor):
 
     def visit_Variable(self, node: AST.Variable):
         return self.st.get(node.name)
-
+    
     def visit_Literal(self, node: AST.Literal):
         return node.typename
 
@@ -374,6 +388,21 @@ class TypeChecker(NodeVisitor):
 
         if isinstance(node.lvalue, AST.MatrixIndex):
             ltype = self.visit(node.lvalue)
+
+            if len(node.lvalue.indices) == 1:
+                mt = self.st.get(node.lvalue.matrix.name)
+                if mt and is_matrix(mt):
+                    _, expected_cols = mat_shape(mt)
+
+                    if is_matrix(rtype):
+                        _, actual_cols = mat_shape(rtype)
+                        if expected_cols is not None and actual_cols is not None and expected_cols != actual_cols:
+                            self.error(f"Cannot assign matrix with {actual_cols} columns to row of matrix with {expected_cols} columns",node)
+                        expected_elem = mat_elem(mt)
+                        actual_elem = mat_elem(rtype)
+                        if expected_elem != actual_elem:
+                            self.error(f"Cannot assign matrix<{tstr(actual_elem)}> to matrix<{tstr(expected_elem)}>",node)
+
             result = self.check_assign(node.operator, ltype, rtype, node)
             return result
 
@@ -408,41 +437,48 @@ class TypeChecker(NodeVisitor):
     def visit_MatrixIndex(self, node: AST.MatrixIndex):
         mt = self.st.get(node.matrix.name)
 
+        if mt is None:
+            self.error(f"Variable '{node.matrix.name}' is not defined", node)
+            return "int"
+
         if not is_matrix(mt):
-            self.error(
-                f"Indexing only supported for matrices, got {tstr(mt)}",
-                node,
-            )
+            self.error(f"Indexing only supported for matrices, got {tstr(mt)}", node)
             return None
 
         shape = mat_shape(mt)
-        indices = node.indices
-        if len(indices) != len(shape):
-            self.error(
-                f"Wrong number of indices for matrix {node.matrix.name}: "
-                f"expected {len(shape)}, got {len(indices)}",
-                node,
-            )
+        indices = node.indices.accept(self) if isinstance(node.indices, AST.ExprList) else [node.indices.accept(self)]
 
-        for dim, (idx_expr, dim_size) in enumerate(zip(indices, shape)):
-            idx_t = self.visit(idx_expr)
+        if len(indices) == 1:
+            idx_t = indices[0]
             if idx_t != "int":
-                self.error(
-                    f"Index {dim} for {node.matrix.name} must be int, "
-                    f"got {tstr(idx_t)}",
-                    idx_expr,
-                )
+                self.error(f"Index for {node.matrix.name} must be int, got {tstr(idx_t)}",indices[0])
 
-            if isinstance(idx_expr, AST.Literal) and idx_expr.typename == "int":
-                idx_val = idx_expr.value
-                if dim_size is not None and idx_val >= dim_size:
-                    self.error(
-                        f"Index {idx_val} out of bounds for dimension {dim} "
-                        f"of matrix {node.matrix.name} (size {dim_size})",
-                        idx_expr,
-                    )
+            if isinstance(indices[0], AST.Literal) and indices[0].typename == "int":
+                idx_val = indices[0].value
+                rows, cols = shape
+                if rows is not None and idx_val >= rows:
+                    self.error(f"Row index {idx_val} out of bounds for matrix {node.matrix.name} (size {rows})",indices[0])
 
-        return base_elem(mt)
+            elem = mat_elem(mt)
+            _, cols = shape
+            return matrix_t(elem, 1, cols)
+
+        elif len(indices) == 2:
+            for dim, (idx_expr, dim_size) in enumerate(zip(indices, shape)):
+                idx_t = idx_expr
+                if idx_t != "int":
+                    self.error(f"Index {dim} for {node.matrix.name} must be int, "f"got {tstr(idx_t)}",idx_expr)
+
+                if isinstance(idx_expr, AST.Literal) and idx_expr.typename == "int":
+                    idx_val = idx_expr.value
+                    if dim_size is not None and idx_val >= dim_size:
+                        self.error(f"Index {idx_val} out of bounds for dimension {dim} "f"of matrix {node.matrix.name} (size {dim_size})",idx_expr)
+
+            return base_elem(mt)
+
+        else:
+            self.error(f"Matrix indexing requires 1 or 2 indices, got {len(indices)}", node)
+            return None
 
     def visit_Transpose(self, node: AST.Transpose):
         mt = self.visit(node.matrix)
@@ -453,28 +489,17 @@ class TypeChecker(NodeVisitor):
         en = self.visit(node.end)
         sp = self.visit(node.step) if node.step is not None else None
         if st != en:
-            self.error(
-                f"Type mismatch in range bounds: {tstr(st)} vs {tstr(en)}",
-                node,
-            )
+            self.error(f"Type mismatch in range bounds: {tstr(st)} vs {tstr(en)}", node)
         if sp is not None and sp != st:
-            self.error(
-                f"Type mismatch in range step: {tstr(st)} vs {tstr(sp)}",
-                node,
-            )
+            self.error(f"Type mismatch in range step: {tstr(st)} vs {tstr(sp)}", node)
+            
         return range_t(st)
 
     def visit_For(self, node: AST.For):
-        """
-        Type check a for loop.
-        Creates a new scope with in_loop=True so that break/continue statements
-        inside the loop body (including nested blocks) can be validated.
-        """
         rng_t = self.visit(node._range)
         if not is_range(rng_t):
             self.error(f"FOR expects a range, got {tstr(rng_t)}", node)
 
-        # Create a new scope for the loop with in_loop=True
         parent = self.st
         self.st = parent.fork(in_loop=True)
         try:
@@ -484,15 +509,9 @@ class TypeChecker(NodeVisitor):
             self.st = parent
 
     def visit_While(self, node: AST.While):
-        """
-        Type check a while loop.
-        Creates a new scope with in_loop=True so that break/continue statements
-        inside the loop body (including nested blocks) can be validated.
-        """
         cond_t = self.visit(node.condition)
         self.expect_bool(cond_t, "while condition", node)
 
-        # Create a new scope for the loop with in_loop=True
         parent = self.st
         self.st = parent.fork(in_loop=True)
         try:
@@ -535,18 +554,12 @@ class TypeChecker(NodeVisitor):
             _, builder = self.functions[fname]
 
             if len(node.args) < 1 or len(node.args) > 2:
-                self.error(
-                    f"Function '{fname}' expects 1 or 2 args, got {len(node.args)}",
-                    node,
-                )
+                self.error(f"Function '{fname}' expects 1 or 2 args, got {len(node.args)}",node)
 
             arg_types = [self.visit(a) for a in node.args]
             for i, got in enumerate(arg_types):
                 if got != "int":
-                    self.error(
-                        f"Argument {i} of '{fname}' expected int, got {tstr(got)}",
-                        node.args[i],
-                    )
+                    self.error(f"Argument {i} of '{fname}' expected int, got {tstr(got)}",node.args[i])
 
             def _dim(a):
                 return a.value if isinstance(a, AST.Literal) and a.typename == "int" else None
@@ -555,10 +568,7 @@ class TypeChecker(NodeVisitor):
             if fname == "eye" and len(args) == 2:
                 r, c = args
                 if r is not None and c is not None and r != c:
-                    self.error(
-                        f"eye expects a square shape, got {r}x{c}",
-                        node,
-                    )
+                    self.error(f"eye expects a square shape, got {r}x{c}",node)
 
             if len(args) == 1:
                 if fname == "eye":

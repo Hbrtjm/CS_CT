@@ -68,7 +68,7 @@ class Mparser(Parser):
     def statement(self, p): return AST.Empty(p.lineno)
 
     @_('ID')
-    def lvalue(self, p): return AST.Variable(p.ID)
+    def lvalue(self, p): return AST.Variable(p.ID, p.lineno)
 
     @_('_index')
     def lvalue(self, p): return p._index

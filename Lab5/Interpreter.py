@@ -5,6 +5,7 @@ from Exceptions import  *
 from visit import *
 import sys
 import operator
+import numpy as np
 
 sys.setrecursionlimit(10000)
 
@@ -40,224 +41,89 @@ class Interpreter(object):
     def _zeros(self, n, *args):
         if args:
             m = int(args[0])
-            return [[0 for _ in range(m)] for _ in range(n)]
-        return [[0 for _ in range(n)] for _ in range(n)]
+            return np.zeros((n, m), dtype=int)
+        return np.zeros((n, n), dtype=int)
 
     def _ones(self, n, *args):
         if args:
             m = int(args[0])
-            return [[1 for _ in range(m)] for _ in range(n)]
-        return [[1 for _ in range(n)] for _ in range(n)]
+            return np.ones((n, m), dtype=int)
+        return np.ones((n, n), dtype=int)
 
     def _eye(self, n, *args):
         if args:
             m = int(args[0])
-            matrix = [[0 for _ in range(m)] for _ in range(n)]
-            min_dim = min(n, m)
-            for i in range(min_dim):
-                matrix[i][i] = 1
-            return matrix
-        matrix = [[0 for _ in range(n)] for _ in range(n)]
-        for i in range(n):
-            matrix[i][i] = 1
-        return matrix
+            return np.eye(n, m, dtype=int)
+        return np.eye(n, dtype=int)
 
     def _add(self, a, b):
         try:
-            if isinstance(a, list) and isinstance(b, list):
-                return self._elem_add(a, b)
-            elif isinstance(a, list):
-                return self._scalar_add(a, b)
-            elif isinstance(b, list):
-                return self._scalar_add(b, a)
-            else:
-                return operator.add(a, b)
-        except (DimensionError, TypeError):
-            raise
-        except Exception:
-            raise TypeError(f"Cannot add {type(a).__name__} and {type(b).__name__}")
+            return a + b
+        except (DimensionError, TypeError) as e:
+            raise TypeError(f"Cannot add {type(a).__name__} and {type(b).__name__}") from e
 
     def _sub(self, a, b):
-        if isinstance(a, list) and isinstance(b, list):
-            return self._elem_sub(a, b)
-        elif isinstance(a, list):
-            rows = len(a)
-            cols = len(a[0]) if rows > 0 else 0
-            result = []
-            for i in range(rows):
-                row = []
-                for j in range(cols):
-                    row.append(a[i][j] - b)
-                result.append(row)
-            return result
-        elif isinstance(b, list):
-            rows = len(b)
-            cols = len(b[0]) if rows > 0 else 0
-            result = []
-            for i in range(rows):
-                row = []
-                for j in range(cols):
-                    row.append(a - b[i][j])
-                result.append(row)
-            return result
-        else:
-            return operator.sub(a, b)
+        return a - b
 
     def _mul(self, a, b):
-        if isinstance(a, list) and isinstance(b, list):
-            return self._matrix_mul(a, b)
-        elif isinstance(a, list):
-            return self._scalar_mul(a, b)
-        elif isinstance(b, list):
-            return self._scalar_mul(b, a)
+        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+            return a @ b
+        elif isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
+            return np.multiply(a, b)
         else:
-            return operator.mul(a, b)
+            return a * b
 
     def _div(self, a, b):
-        if isinstance(a, list) and isinstance(b, list):
-            return self._elem_div(a, b)
-        elif isinstance(a, list):
-            rows = len(a)
-            cols = len(a[0]) if rows > 0 else 0
-            result = []
-            for i in range(rows):
-                row = []
-                for j in range(cols):
-                    row.append(a[i][j] / b)
-                result.append(row)
-            return result
+        if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
+            return np.divide(a, b)
         else:
-            return operator.truediv(a, b)
+            return a / b
 
     def _scalar_mul(self, matrix, scalar):
-        rows = len(matrix)
-        cols = len(matrix[0]) if rows > 0 else 0
-        result = []
-        for i in range(rows):
-            row = []
-            for j in range(cols):
-                row.append(matrix[i][j] * scalar)
-            result.append(row)
-        return result
+        return np.multiply(matrix, scalar)
 
     def _scalar_add(self, matrix, scalar):
-        rows = len(matrix)
-        cols = len(matrix[0]) if rows > 0 else 0
-        result = []
-        for i in range(rows):
-            row = []
-            for j in range(cols):
-                row.append(matrix[i][j] + scalar)
-            result.append(row)
-        return result
+        return np.add(matrix, scalar)
 
     def _matrix_mul(self, a, b):
-        rows_a = len(a)
-        cols_a = len(a[0]) if rows_a > 0 else 0
-        rows_b = len(b)
-        cols_b = len(b[0]) if rows_b > 0 else 0
-
-        if cols_a != rows_b:
-            raise DimensionError(
-                f"Matrix dimensions incompatible for multiplication: ({rows_a}x{cols_a}) * ({rows_b}x{cols_b})"
-            )
-
-        result = []
-        for i in range(rows_a):
-            row = []
-            for j in range(cols_b):
-                sum_val = 0
-                for k in range(cols_a):
-                    sum_val += a[i][k] * b[k][j]
-                row.append(sum_val)
-            result.append(row)
-        return result
+        try:
+            return a @ b
+        except ValueError as e:
+            raise DimensionError(f"Matrix dimensions incompatible for multiplication: {e}")
 
     def _elem_add(self, a, b):
-        if isinstance(a, list) and isinstance(b, list):
-            rows_a = len(a)
-            cols_a = len(a[0]) if rows_a > 0 else 0
-            rows_b = len(b)
-            cols_b = len(b[0]) if rows_b > 0 else 0
-
-            if rows_a != rows_b or cols_a != cols_b:
-                raise DimensionError(
-                    f"Matrix dimensions must match for element-wise addition: ({rows_a}x{cols_a}) vs ({rows_b}x{cols_b})"
-                )
-
-            result = []
-            for i in range(rows_a):
-                row = []
-                for j in range(cols_a):
-                    row.append(a[i][j] + b[i][j])
-                result.append(row)
-            return result
+        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+            try:
+                return a + b
+            except ValueError as e:
+                raise DimensionError(f"Matrix dimensions incompatible for element-wise addition: {e}")
         else:
             raise TypeError("Element-wise addition requires matrices")
 
     def _elem_sub(self, a, b):
-        if isinstance(a, list) and isinstance(b, list):
-            rows_a = len(a)
-            cols_a = len(a[0]) if rows_a > 0 else 0
-            rows_b = len(b)
-            cols_b = len(b[0]) if rows_b > 0 else 0
-
-            if rows_a != rows_b or cols_a != cols_b:
-                raise DimensionError(
-                    f"Matrix dimensions must match for element-wise subtraction: ({rows_a}x{cols_a}) vs ({rows_b}x{cols_b})"
-                )
-
-            result = []
-            for i in range(rows_a):
-                row = []
-                for j in range(cols_a):
-                    row.append(a[i][j] - b[i][j])
-                result.append(row)
-            return result
+        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+            try:
+                return a - b
+            except ValueError as e:
+                raise DimensionError(f"Matrix dimensions incompatible for element-wise subtraction: {e}")
         else:
             raise TypeError("Element-wise subtraction requires matrices")
 
     def _elem_mul(self, a, b):
-        if isinstance(a, list) and isinstance(b, list):
-            rows_a = len(a)
-            cols_a = len(a[0]) if rows_a > 0 else 0
-            rows_b = len(b)
-            cols_b = len(b[0]) if rows_b > 0 else 0
-
-            if rows_a != rows_b or cols_a != cols_b:
-                raise DimensionError(
-                    f"Matrix dimensions must match for element-wise multiplication: ({rows_a}x{cols_a}) vs ({rows_b}x{cols_b})"
-                )
-
-            result = []
-            for i in range(rows_a):
-                row = []
-                for j in range(cols_a):
-                    row.append(a[i][j] * b[i][j])
-                result.append(row)
-            return result
+        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+            try:
+                return a * b
+            except ValueError as e:
+                raise DimensionError(f"Matrix dimensions incompatible for element-wise multiplication: {e}")
         else:
             raise TypeError("Element-wise multiplication requires matrices")
 
     def _elem_div(self, a, b):
-        if isinstance(a, list) and isinstance(b, list):
-            rows_a = len(a)
-            cols_a = len(a[0]) if rows_a > 0 else 0
-            rows_b = len(b)
-            cols_b = len(b[0]) if rows_b > 0 else 0
-
-            if rows_a != rows_b or cols_a != cols_b:
-                raise DimensionError(
-                    f"Matrix dimensions must match for element-wise division: ({rows_a}x{cols_a}) vs ({rows_b}x{cols_b})"
-                )
-
-            result = []
-            for i in range(rows_a):
-                row = []
-                for j in range(cols_a):
-                    row.append(a[i][j] / b[i][j])
-                result.append(row)
-            return result
+        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+            try:
+                return a / b
+            except ValueError as e:
+                raise DimensionError(f"Matrix dimensions incompatible for element-wise division: {e}")
         else:
             raise TypeError("Element-wise division requires matrices")
 
@@ -316,7 +182,7 @@ class Interpreter(object):
                 if len(indices) == 1:
                     current = matrix[indices[0]]
                 elif len(indices) == 2:
-                    current = matrix[indices[0]][indices[1]]
+                    current = matrix[indices[0], indices[1]]
                 else:
                     raise Exception("Invalid number of indices")
                 result = current + value
@@ -324,7 +190,7 @@ class Interpreter(object):
                 if len(indices) == 1:
                     current = matrix[indices[0]]
                 elif len(indices) == 2:
-                    current = matrix[indices[0]][indices[1]]
+                    current = matrix[indices[0], indices[1]]
                 else:
                     raise IndexError("Invalid number of indices for matrix assignment")
                 result = current - value
@@ -332,7 +198,7 @@ class Interpreter(object):
                 if len(indices) == 1:
                     current = matrix[indices[0]]
                 elif len(indices) == 2:
-                    current = matrix[indices[0]][indices[1]]
+                    current = matrix[indices[0], indices[1]]
                 else:
                     raise IndexError("Invalid number of indices for matrix assignment")
                 result = current * value
@@ -340,7 +206,7 @@ class Interpreter(object):
                 if len(indices) == 1:
                     current = matrix[indices[0]]
                 elif len(indices) == 2:
-                    current = matrix[indices[0]][indices[1]]
+                    current = matrix[indices[0], indices[1]]
                 else:
                     raise IndexError("Invalid number of indices for matrix assignment")
                 result = current / value
@@ -350,7 +216,7 @@ class Interpreter(object):
             if len(indices) == 1:
                 matrix[indices[0]] = result
             elif len(indices) == 2:
-                matrix[indices[0]][indices[1]] = result
+                matrix[indices[0], indices[1]] = result
             else:
                 raise IndexError("Invalid number of indices for matrix assignment")
 
@@ -377,8 +243,8 @@ class Interpreter(object):
         try:
             self.memory_stack.set(node.lvalue.name, result)
         except:
-            self.memory_stack.insert(node.lvalue.name, result) 
-            
+            self.memory_stack.insert(node.lvalue.name, result)
+
         return result
 
     @when(AST.If)
@@ -450,7 +316,13 @@ class Interpreter(object):
     @when(AST.Print)
     def visit(self, node):
         values = [elem.accept(self) for elem in node.printlist]
-        print(*values)
+        formatted_values = []
+        for val in values:
+            if isinstance(val, np.ndarray):
+                formatted_values.append(val.tolist())
+            else:
+                formatted_values.append(val)
+        print(*formatted_values)
         return None
 
     @when(AST.Apply)
@@ -493,25 +365,15 @@ class Interpreter(object):
             for elem in row:
                 row_values.append(elem.accept(self))
             result.append(row_values)
-        return result
+        return np.array(result)
 
     @when(AST.Transpose)
     def visit(self, node):
         matrix = node.matrix.accept(self)
-        if not isinstance(matrix, list):
+        if not isinstance(matrix, np.ndarray):
             raise TypeError("Transpose requires a matrix")
 
-        rows = len(matrix)
-        cols = len(matrix[0]) if rows > 0 else 0
-
-        result = []
-        for j in range(cols):
-            new_row = []
-            for i in range(rows):
-                new_row.append(matrix[i][j])
-            result.append(new_row)
-
-        return result
+        return matrix.T
 
     @when(AST.MatrixIndex)
     def visit(self, node):
@@ -522,7 +384,8 @@ class Interpreter(object):
             if len(indices) == 1:
                 return matrix[indices[0]]
             elif len(indices) == 2:
-                return matrix[indices[0]][indices[1]]
+                result = matrix[indices[0], indices[1]]
+                return result.item() if isinstance(result, np.ndarray) and result.ndim == 0 else result
             else:
                 raise IndexError(f"Invalid number of indices: expected 1 or 2, got {len(indices)}")
         except (KeyError, IndexError) as e:

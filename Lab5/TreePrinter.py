@@ -146,10 +146,11 @@ class TreePrinter:
     @addToClass(AST.MatrixIndex)
     def print_tree(self, indent_level=0) -> None:
         print(TreePrinter.indent * indent_level + "MATRIX INDEX")
-        print(TreePrinter.indent * (indent_level + 1) + "ARGUMENTS")
+        print(TreePrinter.indent * (indent_level + 1) + "MATRIX")
         TreePrinter.safe_print_tree(self.matrix, indent_level + 2)
-        TreePrinter.safe_print_tree(self.row, indent_level + 2)
-        TreePrinter.safe_print_tree(self.col, indent_level + 2)
+        print(TreePrinter.indent * (indent_level + 1) + "INDICES")
+        for idx in self.indices:
+            TreePrinter.safe_print_tree(idx, indent_level + 2)
 
     @addToClass(AST.Assign)
     def print_tree(self, indent_level=0) -> None:
